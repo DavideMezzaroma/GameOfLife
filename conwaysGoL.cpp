@@ -1,16 +1,18 @@
 #include "raylib.h"
 #include "raymath.h"
-#include <cstdint>
-#include <stdio.h>
 #include <vector>
 
-#define WIN_W 900
-#define WIN_H 900
+#define WIN_W 1920
+#define WIN_H 1080
 
-#define CELL_SIZE 30
+#define CELL_SIZE 15
 
-#define COLS WIN_H/CELL_SIZE
-#define ROWS WIN_W/CELL_SIZE
+#define COLS WIN_W/CELL_SIZE
+#define ROWS WIN_H/CELL_SIZE
+
+bool simulation_running = false;
+bool grid_active = false;
+float update_time = 0.15f;
 
 class IntVector2{
     public:
@@ -84,6 +86,35 @@ void handleMouseInput(std::vector<std::vector<bool>>& grid){
     }
 }
 
+void handleKeyboardInput(std::vector<std::vector<bool>>& bufGrid, std::vector<std::vector<bool>>& grid){
+    if(IsKeyPressed(KEY_SPACE))
+        simulation_running = !simulation_running;
+    if(IsKeyPressed(KEY_C)){
+        for(int y = 0; y < ROWS; y++){
+            for(int x = 0; x < COLS; x++){
+                grid[y][x] = false;
+                bufGrid[y][x] = false;
+                simulation_running = false;
+            }
+        }
+    }
+    if(IsKeyPressed(KEY_R)){
+        for(int y = 0; y < ROWS; y++){
+            for(int x = 0; x < COLS; x++){
+                grid[y][x] = GetRandomValue(0, 1);
+                simulation_running = false;
+            }
+        }
+        bufGrid = grid;
+    }
+    if(IsKeyPressed(KEY_DOWN) && update_time <= 0.25f)
+        update_time += 0.05f;
+    if(IsKeyPressed(KEY_UP) && update_time >= 0.10f)
+        update_time -= 0.05f;
+    if(IsKeyPressed(KEY_G))
+        grid_active = !grid_active;
+}
+
 int getAliveNeighbours(std::vector<std::vector<bool>>& grid, int r, int c){
     int alive = 0;
     for(int i = -1; i <= 1; i++){
@@ -98,39 +129,47 @@ int getAliveNeighbours(std::vector<std::vector<bool>>& grid, int r, int c){
     return alive;
 }
 
+void updateGrid(std::vector<std::vector<bool>>& grid, std::vector<std::vector<bool>>& bufGrid){
+
+    int alive = 0;
+    grid = bufGrid;
+        for(int y = 0; y < ROWS; y++){
+            for(int x = 0; x < COLS; x++){
+                alive = getAliveNeighbours(grid, y, x);
+                if(alive < 2 || alive > 3)
+                    bufGrid[y][x] = false;
+                else if(alive == 3)
+                    bufGrid[y][x] = true;
+            }
+        }
+}
+
 int main(){
 
     std::vector<std::vector<bool>> grid(ROWS, std::vector<bool>(COLS));
     std::vector<std::vector<bool>> bufGrid(ROWS, std::vector<bool>(COLS));
 
-    bool simulationRunning = false;
-    int alive = 0;
+    float time = 0.0f;
 
-    InitWindow(900, 900, "cellular automata");
+    InitWindow(WIN_W, WIN_H, "cellular automata");
     while(!WindowShouldClose()){
 
         handleMouseInput(bufGrid);
-        if(IsKeyPressed(KEY_SPACE))
-            simulationRunning = !simulationRunning;
+        handleKeyboardInput(bufGrid, grid);
 
-        grid = bufGrid;
-        if(simulationRunning){
-            for(int y = 0; y < ROWS; y++){
-                for(int x = 0; x < COLS; x++){
-                    alive = getAliveNeighbours(grid, y, x);
-                    if(alive < 2 || alive > 3)
-                        bufGrid[y][x] = false;
-                    else if(alive == 3)
-                        bufGrid[y][x] = true;
-                }
+        if(simulation_running){
+            time += GetFrameTime();
+            if(time >= update_time){
+                time -= update_time;
+                updateGrid(grid, bufGrid);
             }
         }
 
         BeginDrawing();
-        ClearBackground(WHITE);
+        ClearBackground(grid_active ? DARKGRAY : BLACK);
         for(int y = 0; y < ROWS; y++){
             for(int x = 0; x < COLS; x++){
-                DrawRectangle(x*CELL_SIZE, y*CELL_SIZE, CELL_SIZE-1, CELL_SIZE-1, bufGrid[y][x] == true ? LIGHTGRAY : DARKGRAY);
+                DrawRectangle(x*CELL_SIZE, y*CELL_SIZE, grid_active ? CELL_SIZE-1 : CELL_SIZE, grid_active ? CELL_SIZE-1 : CELL_SIZE, bufGrid[y][x] == true ? GREEN : BLACK);
             }
         }
 
